@@ -4,8 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
+    <style>
+        video {
+            width: 200px;
+            height: 200px;
+        }
+    </style>
 <body>
     <h1>Hello</h1>
+
+    <audio id="local" autoplay playsinline></audio>
+    <audio id="remote" autoplay playsinline></audio>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="signal.js"></script>
 </body>
