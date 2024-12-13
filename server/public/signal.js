@@ -6,11 +6,13 @@ let remoteSK;
 let localSK;
 
 socket.emit('get')
+
 socket.on('ready', (data) => {
     remoteSK = data.remote
     localSK = data.local
 
-    console.log('local : ', remoteSK)
-    console.log('remote : ', localSK)
+    console.log('local : ', localSK)
+    console.log('remote : ', remoteSK)
 })
+
 

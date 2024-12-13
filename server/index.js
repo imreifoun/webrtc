@@ -28,16 +28,14 @@ io.on('connect', (socket) => {
 
     socket.on('get', () => {
         
-        let data = {local:null, remote: null}
+        let data = {local:socket.id, remote: null}
         if (usersSQL.length >= 2)
         {
-           
+            data.remote = usersSQL[0] == socket.id ? usersSQL[1] : usersSQL[0]
+            socket.emit('ready', data)
+            socket.to(data.remote).emit('ready', {local: data.remote, remote: data.local})
         }
-        else
-        {
-
-        }
-
+        else socket.emit('ready', data)
     })
 
     socket.on('disconnect', () => {
