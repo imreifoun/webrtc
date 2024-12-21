@@ -11,10 +11,15 @@
         }
     </style>
 <body>
-    <h1>Hello</h1>
-
     <audio id="local" autoplay playsinline></audio>
     <audio id="remote" autoplay playsinline></audio>
+
+    <video id="vlocal" autoplay playsinline></video>
+    <video id="vremote" autoplay playsinline></video>
+
+    <button id="call">Call</button>
+    <button id="answer">Answer</button>
+
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="signal.js"></script>
