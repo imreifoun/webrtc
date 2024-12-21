@@ -1,4 +1,4 @@
-const HOST = 'https://192.168.11.106:4000';
+const HOST = 'https://webrtc-1-sgbm.onrender.com';
 const socket = io(HOST);
 
 let remoteSK;

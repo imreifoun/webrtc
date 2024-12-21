@@ -12,6 +12,8 @@ const config = {
     cors: {
         origin: "*", // Allow all origins (you can restrict this for production)
         methods: ["GET", "POST"], // Specify allowed HTTP methods
+        allowedHeaders: ["Content-Type"], // Specify allowed headers (if needed)
+        credentials: true, // Allow cookies or credentials
     },
 };
 
@@ -23,6 +25,9 @@ const options = {
 
 const app = express();
 
+// Enable CORS middleware globally for the Express app
+app.use(require('cors')(config.cors));
+
 // Serve static files from the "public" directory
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -30,7 +35,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const httpsServer = https.createServer(options, app);
 const httpServer = http.createServer(app);
 
-// Initialize Socket.IO with both servers
+// Initialize Socket.IO with both servers and apply CORS config
 const ioHttps = new Server(httpsServer, config);
 const ioHttp = new Server(httpServer, config);
 
@@ -39,7 +44,7 @@ const usersSQL = [];
 
 // Shared emit function for HTTP and HTTPS
 const shared = (id, event, method, data) => {
-    const instance = method === 'https' ? ioHttp : ioHttps;
+    const instance = method === 'https' ? ioHttps : ioHttp;
     instance.to(id).emit(event, data);
 };
 
