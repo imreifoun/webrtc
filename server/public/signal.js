@@ -1,4 +1,4 @@
-const HOST = 'http://localhost:4000';
+const HOST = 'https://192.168.11.106:4000';
 const socket = io(HOST);
 
 let remoteSK;
@@ -25,7 +25,7 @@ const Vremote = document.getElementById('vremote');
 
 // Streams
 
-let StreamLocal, StreamRemote, PC;
+let StreamLocal = null, StreamRemote = null, PC;
 
 // Prepare local video stream
 const prepare = async () => {
@@ -33,16 +33,9 @@ const prepare = async () => {
         const stream = await navigator.mediaDevices.getUserMedia({ video : true, audio: false});
         StreamLocal = stream
         Vlocal.srcObject = stream;
+        OnInit()
     }
-    catch (err){
-        if (err.name === 'NotAllowedError') {
-            console.error('Permission denied: Unable to access camera');
-        } else if (err.name === 'NotFoundError') {
-            console.error('No camera found on this device');
-        } else {
-            console.error('Error accessing media devices:', err);
-        }
-    }
+    catch (err){}
 };
 
 prepare();
@@ -53,19 +46,7 @@ const config = {
     ],
 };
 
-document.getElementById("call").addEventListener('click', () => {
-    PC = new RTCPeerConnection(config)
-    
-    StreamLocal.getTracks().forEach((track) => {
-        PC.addTrack(track, StreamLocal)
-    });
-
-    PC.ontrack = (event) => {
-        console.log('Detected ! => ', event)
-    }
-})
-
-document.getElementById("answer").addEventListener('click', () => {
+const OnInit = () => {
     PC = new RTCPeerConnection(config)
 
     StreamLocal.getTracks().forEach((track) => {
@@ -73,17 +54,41 @@ document.getElementById("answer").addEventListener('click', () => {
     });
 
     PC.ontrack = (event) => {
-        console.log('Detected ! => ', event)
+        console.log('[EVENT] - ', event)
+        Vremote.srcObject = event.streams[0]
     }
+    PC.onicecandidate = (event) => {if (event.icecandidate) socket.emit('route', {to:remoteSK, route: event.icecandidate})}
+}
 
-    PC.onicecandidate = (event) => {
-        if (event.candidate)
-        {
-            console.log('ICE: ', event.candidate)
-        }
+document.getElementById("call").addEventListener('click', async () => {
+
+    console.log('remoteSK : ', remoteSK)
+    if (remoteSK)
+    {
+        const offer = await PC.createOffer()
+        await PC.setLocalDescription(offer) 
+
+        socket.emit('offer', {to:remoteSK, offer: offer})
     }
-
 })
+
+socket.on('ice', async (route)=>{
+    await PC.addIceCandidate(route)
+})
+
+socket.on('answer', async (answer)=>{
+    await PC.setRemoteDescription(answer)
+})
+
+socket.on('offer', async (offer) => {
+
+    await PC.setRemoteDescription(offer)
+
+    const answer = await PC.createAnswer()
+    await PC.setLocalDescription(answer)
+    socket.emit('answer', {to:remoteSK, answer: answer})
+})
+
 
 
 
