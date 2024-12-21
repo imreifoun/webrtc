@@ -5,13 +5,14 @@ const { Server } = require('socket.io');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 4000;
+const HTTP_PORT = 3000;
+const HTTPS_PORT = 4000;
 
 const config = {
     cors: {
         origin: "*", // Allow all origins (you can restrict this for production)
-        methods: ["GET", "POST"] // Specify allowed HTTP methods
-    }
+        methods: ["GET", "POST"], // Specify allowed HTTP methods
+    },
 };
 
 // Read the SSL certificates for HTTPS
@@ -25,62 +26,74 @@ const app = express();
 // Serve static files from the "public" directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Create an https server using the app and SSL options
-const server = http.createServer(app);
+// Create HTTPS and HTTP servers
+const httpsServer = https.createServer(options, app);
+const httpServer = http.createServer(app);
 
-// Initialize Socket.IO with the server and configuration
-const io = new Server(server, config);
+// Initialize Socket.IO with both servers
+const ioHttps = new Server(httpsServer, config);
+const ioHttp = new Server(httpServer, config);
 
 // In-memory list of connected users
 const usersSQL = [];
 
-io.on('connection', (socket) => {
-    console.log('[new] socket id :', socket.id);
+// Shared emit function for HTTP and HTTPS
+const shared = (id, event, method, data) => {
+    const instance = method === 'https' ? ioHttp : ioHttps;
+    instance.to(id).emit(event, data);
+};
 
-    // Add the new socket ID to the list of users
-    usersSQL.push(socket.id);
-    console.log('usersSQL :', usersSQL);
+// Handle connection for a given Socket.IO instance
+const handleConnection = (ioInstance, method) => {
+    ioInstance.on('connection', (socket) => {
+        console.log(`[${method}] New connection: ${socket.id}`);
 
-    // Handle 'get' event from the client
-    socket.on('get', () => {
-        let data = { local: socket.id, remote: null };
+        // Add the new socket ID to the list of users
+        usersSQL.push(socket.id);
+        console.log('Connected users:', usersSQL);
 
-        if (usersSQL.length >= 2) {
-            // Find a peer for the current socket
-            data.remote = usersSQL[0] === socket.id ? usersSQL[1] : usersSQL[0];
+        // Handle 'get' event from the client
+        socket.on('get', () => {
+            const data = { local: socket.id, remote: null };
 
-            // Notify the local and remote peers that they are ready
-            socket.emit('ready', data);
-            socket.to(data.remote).emit('ready', { local: data.remote, remote: data.local });
-        } else {
-            socket.emit('ready', data); // Notify the client that no peer is available
-        }
+            if (usersSQL.length >= 2) {
+                // Find a peer for the current socket
+                data.remote = usersSQL[0] === socket.id ? usersSQL[1] : usersSQL[0];
+
+                // Notify the local and remote peers that they are ready
+                socket.emit('ready', data);
+                shared(data.remote, 'ready', method, { local: data.remote, remote: data.local });
+            } else {
+                socket.emit('ready', data); // Notify the client that no peer is available
+            }
+        });
+
+        // Handle signaling events
+        socket.on('route', (data) => shared(data.to, 'ice', method, data.route));
+        socket.on('offer', (data) => shared(data.to, 'offer', method, data.offer));
+        socket.on('answer', (data) => shared(data.to, 'answer', method, data.answer));
+
+        // Handle socket disconnection
+        socket.on('disconnect', () => {
+            const index = usersSQL.indexOf(socket.id);
+            if (index !== -1) {
+                usersSQL.splice(index, 1);
+            }
+            console.log(`[${method}] Disconnected: ${socket.id}`);
+        });
     });
+};
 
-    // Handle 'route' event for signaling
-    socket.on('route', (data) => {
-        socket.to(data.to).emit('ice', data.route);
-    });
+// Attach connection handlers for both servers
+handleConnection(ioHttps, 'https');
+handleConnection(ioHttp, 'http');
 
-    socket.on('offer', (data) => {
-        socket.to(data.to).emit('offer', data.offer);
-    });
-
-    socket.on('answer', (data) => {
-        socket.to(data.to).emit('answer', data.answer);
-    });
-
-    // Handle socket disconnection
-    socket.on('disconnect', () => {
-        const index = usersSQL.indexOf(socket.id);
-        if (index !== -1) {
-            usersSQL.splice(index, 1);
-        }
-        console.log(`[disconnect] socket id : ${socket.id}`);
-    });
+// Start the HTTPS server
+httpsServer.listen(HTTPS_PORT, () => {
+    console.log(`HTTPS Server is running on https://localhost:${HTTPS_PORT}`);
 });
 
-// Start the server
-server.listen(PORT, () => {
-    console.log(`Server is running on https://localhost:${PORT}`);
+// Start the HTTP server
+httpServer.listen(HTTP_PORT, () => {
+    console.log(`HTTP Server is running on http://localhost:${HTTP_PORT}`);
 });
