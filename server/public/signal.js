@@ -52,12 +52,19 @@ const OnInit = () => {
     StreamLocal.getTracks().forEach((track) => {
         PC.addTrack(track, StreamLocal)
     });
-
+    
     PC.ontrack = (event) => {
-        console.log('[EVENT] - ', event)
-        Vremote.srcObject = event.streams[0]
-    }
-    PC.onicecandidate = (event) => {if (event.icecandidate) socket.emit('route', {to:remoteSK, route: event.icecandidate})}
+        if (event.streams && event.streams[0]) {
+            Vremote.srcObject = event.streams[0];
+        } else {
+            // Fallback: Create a new MediaStream and add the track
+            const stream = new MediaStream();
+            stream.addTrack(event.track);
+            Vremote.srcObject = stream;
+        }
+    };
+
+    PC.onicecandidate = (event) => {if (event.candidate) socket.emit('route', {to:remoteSK, route: event.candidate})}
 }
 
 document.getElementById("call").addEventListener('click', async () => {
@@ -72,9 +79,11 @@ document.getElementById("call").addEventListener('click', async () => {
     }
 })
 
-socket.on('ice', async (route)=>{
-    await PC.addIceCandidate(route)
-})
+socket.on('ice', async ({ route }) => {
+    if (route) {
+        await PC.addIceCandidate(new RTCIceCandidate(route));
+    }
+});
 
 socket.on('answer', async (answer)=>{
     await PC.setRemoteDescription(answer)
